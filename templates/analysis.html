@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ analysis_type }}</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.5;
+        }
+        .plot-block, .text-block {
+            margin-bottom: 40px;
+        }
+        img {
+            max-width: 95%;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+        h1 {
+            margin-bottom: 30px;
+        }
+        pre {
+            background: #f7f7f7;
+            padding: 15px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    {% if analysis_type %}
+        <h1>{{ analysis_type }}</h1>
+    {% else %}
+        <h1>Analysis Results</h1>
+    {% endif %}
+
+    <!-- TEXT SUMMARY -->
+    {% if text_summary %}
+    <div class="text-block">
+        <pre>{{ text_summary }}</pre>
+    </div>
+    {% endif %}
+
+    <!-- MAIN APP: plot_file (string) -->
+    {% if plot_file is string %}
+    <div class="plot-block">
+        <img src="{{ plot_file }}">
+    </div>
+    {% endif %}
+
+    <!-- MAIN APP: plot_file (list) -->
+    {% if plot_file is iterable and plot_file is not string %}
+        {% for p in plot_file %}
+        <div class="plot-block">
+            <img src="{{ p }}">
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- MAIN APP: plot_file2 (map + heatmap) -->
+    {% if plot_file2 %}
+    <div class="plot-block">
+        <img src="{{ plot_file2 }}">
+    </div>
+    {% endif %}
+
+    <!-- SSS MODULE: plot_url (base64) -->
+    {% if plot_url %}
+    <div class="plot-block">
+        <img src="{{ plot_url }}" alt="SSS Plot">
+    </div>
+    {% endif %}
+
+    <!-- SPORTS MODULE -->
+    {% if sports_plot %}
+    <div class="plot-block">
+        <img src="{{ sports_plot }}">
+    </div>
+    {% endif %}
+
+    {% if sports_plot_list %}
+        {% for sp in sports_plot_list %}
+        <div class="plot-block">
+            <img src="{{ sp }}">
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- REGION MODULE -->
+    {% if region_plot %}
+    <div class="plot-block">
+        <img src="{{ region_plot }}">
+    </div>
+    {% endif %}
+
+    <!-- COMPARATIVE MODULE -->
+    {% if compare_plot %}
+    <div class="plot-block">
+        <img src="{{ compare_plot }}">
+    </div>
+    {% endif %}
+
+    <br><br>
+    <a href="{{ url_for('index') }}">Back</a>
+
+</body>
+</html>
+
