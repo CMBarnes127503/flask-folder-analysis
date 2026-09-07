@@ -3,7 +3,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Folder Analysis App</title>
+    <title>Physical Activity Data Analysis</title>
 
     <style>
         body {
@@ -54,12 +54,6 @@
             background: #1e5edc;
         }
 
-        .status {
-            margin-top: 15px;
-            font-weight: bold;
-            color: green;
-        }
-
         .main {
             flex: 1;
             padding: 20px;
@@ -82,7 +76,6 @@
         }
 
         img {
-            max-width: 95%;
             border: 1px solid #ccc;
             background: white;
         }
@@ -90,6 +83,13 @@
         .plot-image {
             max-width: 100%;
             height: auto;
+            display: block;
+        }
+
+        .wales-map {
+            width: auto;
+            height: auto;
+            max-width: none;
             display: block;
         }
 
@@ -108,13 +108,6 @@
 
         area {
             cursor: pointer;
-        }
-
-        .map-image {
-            width: auto;
-            height: auto;
-            max-width: none;
-            display: block;
         }
     </style>
 
@@ -169,7 +162,7 @@
 
     <div class="sidebar">
 
-        <h2>Folder Analysis</h2>
+        <h2>Sports Survey Data</h2>
 
         <!-- REGION ANALYSIS -->
         <form method="POST" action="/">
@@ -235,7 +228,7 @@
         <hr>
 
         <!-- SSS ANALYSIS -->
-        <h2>Analysis of Wales</h2>
+        <h2>Analysis Sport Survey Data for Wales</h2>
 
         <form method="POST" action="{{ url_for('sss.sss_ww') }}">
 
@@ -259,7 +252,7 @@
         <hr><hr>
 
         <!-- QUESTIONS ANALYSIS -->
-        <h2>Analysis of Questions</h2>
+        <h2>Analysis of Student Health and Wellbeing Survey</h2>
 
         <form method="POST" action="{{ url_for('questions.questions') }}">
             <label><strong>Select Question Dataset</strong></label><br>
@@ -296,10 +289,9 @@
         <hr><hr>
 
         <!-- SPORTS PARTICIPATION -->
-        <h2>Sports Participation Analysis</h2>
+        <h2>School Sport Survey Analysis</h2>
 
         <form method="POST" action="{{ url_for('sports.sports_load') }}">
-
 
             <label>Select Sports Dataset</label>
             <select name="sports_choice">
@@ -325,6 +317,8 @@
                 <option value="top10">Top 10 Activities</option>
                 <option value="latent">Latent Demand vs Participation</option>
                 <option value="demographic">Demographic Comparison</option>
+
+                <!-- ⭐ FIXED VALUE -->
                 <option value="year_compare">Year Comparison (2022 vs 2023)</option>
             </select>
 
@@ -335,14 +329,6 @@
     </div> <!-- END SIDEBAR -->
 
     <div class="main">
-
-        <!-- ⭐ NEW: SSS PLOT SUPPORT -->
-        {% if plot_url %}
-        <div class="plot-container">
-            <div class="plot-title">{{ analysis_type }}</div>
-            <img src="{{ plot_url }}" class="plot-image">
-        </div>
-        {% endif %}
 
         {% if plot_file or plot_file2 %}
         <div class="plot-container">
@@ -363,7 +349,7 @@
 
                         <img src="{{ plot_file }}"
                              usemap="#walesmap"
-                             class="map-image">
+                             class="wales-map">
 
                         <map name="walesmap" id="walesmap">
 
@@ -412,3 +398,4 @@
 
 </body>
 </html>
+
