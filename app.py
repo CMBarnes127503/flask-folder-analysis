@@ -1,5 +1,6 @@
 import os
 import uuid
+import math
 import numpy as np
 import pandas as pd
 
@@ -7,10 +8,51 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-
 from flask import Flask, render_template, request
-from mpl_toolkits.mplot3d import Axes3D
-import math
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
+# -------------------------------------------------
+# WIPAHS colour palette (shared across all plots)
+# -------------------------------------------------
+WIPAHS_COLORS = [
+    "#3A86FF",  # blue
+    "#FF006E",  # pink
+    "#FB5607",  # orange
+    "#6A4C93",  # purple
+    "#FFBE0B",  # yellow
+    "#8338EC",  # violet
+]
+
+# -------------------------------------------------
+# Helper: shorten long activity / group names
+# -------------------------------------------------
+def shorten_activity(name):
+    # Convert non-strings (floats, NaN) to safe strings
+    if not isinstance(name, str):
+        name = str(name)
+
+    prefixes = [
+        "Sport - Fitness activities in last 4 weeks - ",
+        "Sport - Games and sports in last 4 weeks - ",
+        "Sport - Outdoor activities in last 4 weeks - ",
+        "Sport - Participation - Last 4 weeks - "
+    ]
+
+    for p in prefixes:
+        if name.startswith(p):
+            name = name.replace(p, "")
+            break
+
+    name = name.strip()
+
+    if len(name) > 35:
+        name = name[:32] + "..."
+
+    return name
+
+    
+
+
 
 # -------------------------------------------------
 # Flask App
@@ -39,7 +81,6 @@ COMPARE_FOLDER = "compare_folder"
 os.makedirs(REGION_FOLDER, exist_ok=True)
 os.makedirs(COMPARE_FOLDER, exist_ok=True)
 
-
 # -------------------------------------------------
 # GitHub‑based datasets (SSS, Questions, Sports)
 # -------------------------------------------------
@@ -64,12 +105,12 @@ def list_region_files():
         if f.lower().endswith(".xlsx")
     ]
 
+
 def list_compare_files():
     return [
         f for f in os.listdir(COMPARE_FOLDER)
         if f.lower().endswith(".xlsx")
     ]
-
 
 # -------------------------------------------------
 # Static plot folder
@@ -77,10 +118,8 @@ def list_compare_files():
 PLOTS_FOLDER = os.path.join(app.static_folder, "plots")
 os.makedirs(PLOTS_FOLDER, exist_ok=True)
 
+
 def save_plot(filename):
-    """
-    Save a plot into static/plots and return the browser path.
-    """
     fs_path = os.path.join(PLOTS_FOLDER, filename)
     web_path = f"static/plots/{filename}"
     return fs_path, web_path
@@ -92,8 +131,9 @@ def list_valid_excels(path):
     if not os.path.exists(path):
         return []
     return [f for f in os.listdir(path) if f.lower().endswith(".xlsx")]
+
 # -------------------------------------------------
-# KPI plotting (Table 1 + Table 3)
+# KPI plotting (Table 1 + Table 3) – WIPAHS colours
 # -------------------------------------------------
 def plot_kpi(filepath, category="Gender"):
     import pandas as pd
@@ -102,8 +142,6 @@ def plot_kpi(filepath, category="Gender"):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-
-    # CATEGORY CONFIG
     config = {
         "Gender": {
             "groups": ["Boy", "Girl", "Pupils identifying as 'Other'", "I do not want to say"],
@@ -144,7 +182,6 @@ def plot_kpi(filepath, category="Gender"):
     group_names = config[category]["groups"]
     title_ = config[category]["title"]
 
-    # READ TABLE 1
     df = pd.read_excel(filepath, sheet_name="Table 1")
     selected_cols = [1, 4, 5]
 
@@ -158,14 +195,13 @@ def plot_kpi(filepath, category="Gender"):
 
     numeric = matching.to_numpy()
 
-    # PLOT 1: 3D Scatter
     fig1 = plt.figure(figsize=(16, 14))
     ax1 = fig1.add_subplot(111, projection="3d")
 
     plt.subplots_adjust(left=0.22, right=0.90, top=0.92, bottom=0.22)
 
     unique_groups = matched_labels.unique()
-    colors = plt.cm.tab10(np.linspace(0, 1, len(unique_groups)))
+    colors = [WIPAHS_COLORS[i % len(WIPAHS_COLORS)] for i in range(len(unique_groups))]
 
     for color, g in zip(colors, unique_groups):
         idx = matched_labels == g
@@ -198,7 +234,6 @@ def plot_kpi(filepath, category="Gender"):
     plt.savefig(scatter_fs, bbox_inches="tight")
     plt.close(fig1)
 
-    # READ TABLE 3 (Bar Chart)
     raw3 = pd.read_excel(filepath, sheet_name="Table 3", header=1)
     raw3.columns = raw3.columns.astype(str).str.strip().str.replace("\u00A0", "", regex=False)
 
@@ -219,14 +254,13 @@ def plot_kpi(filepath, category="Gender"):
     female_pct = pd.to_numeric(raw3[girl_col], errors="coerce").fillna(0)
     all_pct = pd.to_numeric(raw3[all_col], errors="coerce").fillna(0)
 
-    # PLOT 2: Horizontal Bar Chart
     fig2, ax2 = plt.subplots(figsize=(30, len(countries) * 0.8))
 
     y = np.arange(len(countries))
 
-    ax2.barh(y - 0.25, male_pct, height=0.25, label="Boy")
-    ax2.barh(y,         female_pct, height=0.25, label="Girl")
-    ax2.barh(y + 0.25, all_pct,     height=0.25, label="All")
+    ax2.barh(y - 0.25, male_pct, height=0.25, label="Boy",  color=WIPAHS_COLORS[0])
+    ax2.barh(y,         female_pct, height=0.25, label="Girl", color=WIPAHS_COLORS[1])
+    ax2.barh(y + 0.25, all_pct,     height=0.25, label="All",  color=WIPAHS_COLORS[3])
 
     ax2.set_yticks(y)
     ax2.set_yticklabels(countries, fontsize=18)
@@ -246,9 +280,8 @@ def plot_kpi(filepath, category="Gender"):
 
     return scatter_path, bar_path
 
-
 # -------------------------------------------------
-# KPI Summary 3D
+# KPI Summary 3D – WIPAHS colours
 # -------------------------------------------------
 def plot_kpi_summary_3d():
     import os
@@ -258,7 +291,6 @@ def plot_kpi_summary_3d():
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-
 
     folder = COMPARE_FOLDER
     files = [
@@ -278,22 +310,16 @@ def plot_kpi_summary_3d():
     region_labels_list = []
     category_labels = None
 
-    # -----------------------------
-    # Read all files
-    # -----------------------------
     for i, fname in enumerate(files):
         fpath = os.path.join(folder, fname)
         df = pd.read_excel(fpath, sheet_name=sheet)
 
-        # Extract category labels once
         if category_labels is None:
             category_labels = df.columns[1:4]
 
-        # Region labels (first 3 rows)
         region_labels = df.iloc[0:3, 0].astype(str).values
         region_labels_list.append(region_labels)
 
-        # Extract numeric data
         raw = df.iloc[0:3, 1:4].astype(str).replace(
             ["-", "nan", "NaN", ""], "0"
         )
@@ -301,31 +327,23 @@ def plot_kpi_summary_3d():
 
         data_cube[:, :, i] = numeric
 
-    # -----------------------------
-    # Build 3D bar chart
-    # -----------------------------
     fig = plt.figure(figsize=(16, 12))
     ax = fig.add_subplot(111, projection="3d")
 
     bar_width = 0.2
     group_spacing = 1.5
 
-    # Unique region names across all files
     all_regions = np.concatenate(region_labels_list)
     unique_regions = pd.unique(all_regions)
 
-    # Assign colors
-    cmap = plt.cm.get_cmap("tab10", len(unique_regions))
     region_color_map = {
-        region: cmap(idx) for idx, region in enumerate(unique_regions)
+        region: WIPAHS_COLORS[idx % len(WIPAHS_COLORS)]
+        for idx, region in enumerate(unique_regions)
     }
 
     legend_handles = []
     legend_names = []
 
-    # -----------------------------
-    # Draw bars
-    # -----------------------------
     for sheet_idx in range(L):
         for cat_idx in range(num_categories):
             for reg_idx in range(rows_per_sheet):
@@ -343,15 +361,11 @@ def plot_kpi_summary_3d():
 
                 ax.bar3d(x, y, z, dx, dy, dz, color=color, alpha=0.95)
 
-                # Legend entry
                 if region_name not in legend_names:
                     h = ax.bar3d(0, 0, 0, 0, 0, 0, color=color)
                     legend_handles.append(h)
                     legend_names.append(region_name)
 
-    # -----------------------------
-    # Axes & labels
-    # -----------------------------
     ax.set_xlabel("Category")
     ax.set_ylabel("File Index")
     ax.set_zlabel("Percentage (%)")
@@ -365,10 +379,8 @@ def plot_kpi_summary_3d():
 
     ax.view_init(30, 45)
     ax.grid(True)
+    ax.legend(legend_handles, legend_names, fontsize=10)
 
-    # -----------------------------
-    # Save plot
-    # -----------------------------
     outname = f"compare_3d_{uuid.uuid4().hex}.png"
     out_fs, out_path = save_plot(outname)
     plt.savefig(out_fs, bbox_inches="tight")
@@ -376,9 +388,8 @@ def plot_kpi_summary_3d():
 
     return out_path
 
-
 # -------------------------------------------------
-# Frequency
+# Frequency – WIPAHS colours
 # -------------------------------------------------
 def plot_frequency(filepath):
     import pandas as pd
@@ -386,7 +397,6 @@ def plot_frequency(filepath):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-
 
     df = pd.read_excel(filepath, sheet_name="Table 3", header=1)
 
@@ -416,8 +426,8 @@ def plot_frequency(filepath):
 
     y = np.arange(len(countries))
 
-    ax1.barh(y - 0.2, male_pct, height=0.4, label="Boy", color="#3A86FF")
-    ax1.barh(y + 0.2, female_pct, height=0.4, label="Girl", color="#FF006E")
+    ax1.barh(y - 0.2, male_pct, height=0.4, label="Boy",  color=WIPAHS_COLORS[0])
+    ax1.barh(y + 0.2, female_pct, height=0.4, label="Girl", color=WIPAHS_COLORS[1])
 
     ax1.set_yticks(y)
     ax1.set_yticklabels(countries, fontsize=14)
@@ -435,9 +445,12 @@ def plot_frequency(filepath):
     plt.savefig(bar_fs, bbox_inches="tight")
     plt.close(fig1)
 
-    # Heatmap
+    # -------------------------------------------------
+    # HEATMAP SECTION (FULLY FIXED)
+    # -------------------------------------------------
+
     sport_cols = df.columns[5:]
-    sports = list(sport_cols)
+    labels = [shorten_activity(s) for s in sport_cols]
 
     matrix = []
     for col in sport_cols:
@@ -446,36 +459,40 @@ def plot_frequency(filepath):
         matrix.append(numeric)
 
     matrix = np.array(matrix).T
-    matrix = matrix[:62, :]
 
-    fig2, ax2 = plt.subplots(figsize=(30, 20))
+    # Ensure matrix and countries match
+    row_labels = df.iloc[:, 0].astype(str).values
+    matrix = matrix[:len(row_labels), :]
+
+    # Auto-scale figure size
+    fig_width = max(12, len(labels) * 0.4)
+    fig_height = max(8, len(row_labels) * 0.25)
+
+    fig2, ax2 = plt.subplots(figsize=(fig_width, fig_height))
 
     from matplotlib.colors import LinearSegmentedColormap
     cmap = LinearSegmentedColormap.from_list(
-        "custom_rYG",
-        [(1, 0, 0), (1, 1, 0), (0, 1, 0)],
+        "wipahs_heat",
+        [WIPAHS_COLORS[2], WIPAHS_COLORS[5], WIPAHS_COLORS[4]],
         N=256
     )
 
     im = ax2.imshow(matrix, cmap=cmap, aspect="auto")
 
-    ax2.set_xticks(np.arange(len(sports)))
-    ax2.set_xticklabels(sports, rotation=45, ha="right", fontsize=14)
+    ax2.set_xticks(np.arange(len(labels)))
+    ax2.set_xticklabels(labels, rotation=45, ha="right", fontsize=12)
 
-    ax2.set_yticks(np.arange(len(countries)))
-    ax2.set_yticklabels(countries, fontsize=14)
+    ax2.set_yticks(np.arange(len(row_labels)))
+    ax2.set_yticklabels(row_labels, fontsize=12)
 
     ax2.set_title("Participation in the last year by sport, by school", fontsize=18, pad=20)
     ax2.set_xlabel("Sport", fontsize=14)
     ax2.set_ylabel("School", fontsize=14)
 
+    # Clean annotations
     for i in range(matrix.shape[0]):
         for j in range(matrix.shape[1]):
-            ax2.text(
-                j, i, f"{matrix[i, j]:.1f}%",
-                ha="center", va="center",
-                fontsize=10, color="black"
-            )
+            ax2.text(j, i, f"{matrix[i, j]:.1f}%", ha="center", va="center", fontsize=8)
 
     plt.tight_layout()
 
@@ -486,9 +503,8 @@ def plot_frequency(filepath):
 
     return bar_path, heat_path
 
-
 # -------------------------------------------------
-# Participation setting
+# Participation setting – WIPAHS colours
 # -------------------------------------------------
 def plot_participation_setting(filepath):
     import pandas as pd
@@ -496,7 +512,6 @@ def plot_participation_setting(filepath):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-
 
     df = pd.read_excel(filepath, sheet_name="Table 7b", header=1)
 
@@ -517,9 +532,9 @@ def plot_participation_setting(filepath):
     y = np.arange(len(sports))
     bar_height = 0.25
 
-    ax.barh(y - bar_height, all_pupils, height=bar_height, label="All pupils", color="#6A4C93")
-    ax.barh(y,             boys,       height=bar_height, label="Boy",        color="#3A86FF")
-    ax.barh(y + bar_height, girls,     height=bar_height, label="Girl",       color="#FF006E")
+    ax.barh(y - bar_height, all_pupils, height=bar_height, label="All pupils", color=WIPAHS_COLORS[3])
+    ax.barh(y,             boys,       height=bar_height, label="Boy",        color=WIPAHS_COLORS[0])
+    ax.barh(y + bar_height, girls,     height=bar_height, label="Girl",       color=WIPAHS_COLORS[1])
 
     ax.set_yticks(y)
     ax.set_yticklabels(sports, fontsize=14)
@@ -539,9 +554,8 @@ def plot_participation_setting(filepath):
 
     return plot_path
 
-
 # -------------------------------------------------
-# Disability support
+# Disability support – WIPAHS colours
 # -------------------------------------------------
 def plot_disability_support(filepath):
     import pandas as pd
@@ -550,8 +564,6 @@ def plot_disability_support(filepath):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-
-    # Table 11a
     df = pd.read_excel(filepath, sheet_name="Table 11a", header=1)
 
     df.columns = (
@@ -576,9 +588,9 @@ def plot_disability_support(filepath):
     y = np.arange(len(schools))
     bar_h = 0.25
 
-    ax1.barh(y - bar_h, wales_pct,  height=bar_h, label="Wales", color="#6A4C93")
-    ax1.barh(y,         region_pct, height=bar_h, label="Regional Sport Partnership", color="#3A86FF")
-    ax1.barh(y + bar_h, area_pct,   height=bar_h, label="Specific Region", color="#FF006E")
+    ax1.barh(y - bar_h, wales_pct,  height=bar_h, label="Wales",                    color=WIPAHS_COLORS[3])
+    ax1.barh(y,         region_pct, height=bar_h, label="Regional Sport Partnership", color=WIPAHS_COLORS[0])
+    ax1.barh(y + bar_h, area_pct,   height=bar_h, label="Specific Region",          color=WIPAHS_COLORS[1])
 
     ax1.set_yticks(y)
     ax1.set_yticklabels(schools, fontsize=14)
@@ -596,12 +608,9 @@ def plot_disability_support(filepath):
     plt.savefig(plot1_fs, bbox_inches="tight")
     plt.close(fig1)
 
-    # Table 11b
     df2 = pd.read_excel(filepath, sheet_name="Table 11b", header=1)
-
     df2.columns = (df2.columns.astype(str).str.strip().str.replace("\u00A0", "", regex=False))
 
-    # Extract labels and numeric columns
     support_labels = df2.iloc[1:14, 0].astype(str)
 
     colA = pd.to_numeric(df2.iloc[1:14, 1], errors="coerce").fillna(0)
@@ -613,9 +622,9 @@ def plot_disability_support(filepath):
     y2 = np.arange(len(support_labels))
     bar_h2 = 0.25
 
-    ax2.barh(y2 - bar_h2, colA, height=bar_h2, label=df2.columns[1], color="#6A4C93")
-    ax2.barh(y2,          colB, height=bar_h2, label=df2.columns[2], color="#3A86FF")
-    ax2.barh(y2 + bar_h2, colC, height=bar_h2, label=df2.columns[3], color="#FF006E")
+    ax2.barh(y2 - bar_h2, colA, height=bar_h2, label=df2.columns[1], color=WIPAHS_COLORS[3])
+    ax2.barh(y2,          colB, height=bar_h2, label=df2.columns[2], color=WIPAHS_COLORS[0])
+    ax2.barh(y2 + bar_h2, colC, height=bar_h2, label=df2.columns[3], color=WIPAHS_COLORS[1])
 
     ax2.set_yticks(y2)
     ax2.set_yticklabels(support_labels, fontsize=14)
@@ -634,8 +643,9 @@ def plot_disability_support(filepath):
     plt.close(fig2)
 
     return plot1_path, plot2_path
+
 # -------------------------------------------------
-# Demand
+# Demand – WIPAHS colours
 # -------------------------------------------------
 def plot_demand(filepath):
     import pandas as pd
@@ -643,9 +653,6 @@ def plot_demand(filepath):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-
-    import uuid
-    import os
 
     df = pd.read_excel(filepath, sheet_name="Table 12a", header=1)
 
@@ -668,8 +675,8 @@ def plot_demand(filepath):
     y = np.arange(len(schools))
     bar_h = 0.25
 
-    ax.barh(y - bar_h/2, boys,  height=bar_h, label="Boy",  color="#3A86FF")
-    ax.barh(y + bar_h/2, girls, height=bar_h, label="Girl", color="#FF006E")
+    ax.barh(y - bar_h/2, boys,  height=bar_h, label="Boy",  color=WIPAHS_COLORS[0])
+    ax.barh(y + bar_h/2, girls, height=bar_h, label="Girl", color=WIPAHS_COLORS[1])
 
     ax.set_yticks(y)
     ax.set_yticklabels(schools, fontsize=14)
@@ -689,9 +696,11 @@ def plot_demand(filepath):
 
     return plot_path
 
-
 # -------------------------------------------------
-# Motivation
+# Motivation – WIPAHS colours
+# -------------------------------------------------
+# -------------------------------------------------
+# Motivation – WIPAHS colours (FULLY CORRECTED)
 # -------------------------------------------------
 def plot_motivation(filepath):
     import pandas as pd
@@ -699,76 +708,81 @@ def plot_motivation(filepath):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-
     import uuid
-    import os
+    from matplotlib.colors import LinearSegmentedColormap
 
     print(">>> plot_motivation called with:", filepath)
 
-    try:
-        df = pd.read_excel(filepath, sheet_name="Table 14a", header=0)
-    except Exception as e:
-        print("❌ Error reading Table 14a:", e)
-        return None
+    # Read with header on the second row (group labels)
+    df = pd.read_excel(filepath, sheet_name="Table 14a", header=1)
 
-    df.columns = (
-        df.columns.astype(str)
-        .str.strip()
-        .str.replace("\u00A0", "", regex=False)
-    )
-
+    # First column = question/response text
     first_col = df.iloc[:, 0].astype(str)
 
+    # ⭐ Detect numeric columns dynamically
+    # Find the first row that contains numeric values
+    numeric_row = df.iloc[:, 1:].apply(
+        lambda row: pd.to_numeric(row, errors="coerce").notna().sum(), axis=1
+    ).idxmax()
+
+    # Identify columns that contain numeric values in that row
+    numeric_cols = df.iloc[numeric_row].apply(
+        lambda x: pd.to_numeric(x, errors="coerce")
+    ).dropna().index.tolist()
+
+    # Extract group labels from those columns
+    group_labels = [str(col) for col in numeric_cols]
+    groups = [shorten_activity(g) for g in group_labels]
+
     questions = [
-        "How much do you think PE lessons and sport help you to have a healthy lifestyle?",
+        "How much do you think PE lessons and sport help you to have a healthy lifestyle?",
         "How often do you feel your ideas about PE and school sport are listened to?",
         "How much do you enjoy PE lessons?",
         "How much do you enjoy doing sport at after-school or lunchtime clubs?",
-        "How much do you enjoy doing sport in a community club, when you are not at school?",
-        "How much do you enjoy doing sport somewhere else that is outside of school and community clubs?",
+        "How much do you enjoy doing sport in a community club, when you are not at school?",
+        "How much do you enjoy doing sport somewhere else that is outside of school and community clubs?",
         "How confident are you in trying new sports?"
     ]
 
     output_paths = []
 
+    cmap = LinearSegmentedColormap.from_list(
+        "wipahs_heat",
+        [WIPAHS_COLORS[2], WIPAHS_COLORS[5], WIPAHS_COLORS[4]],
+        N=256
+    )
+
     for q_index, question in enumerate(questions, start=1):
         print(f"🔍 Processing Q{q_index}: {question}")
 
-        row_start = first_col[first_col.str.contains(question, na=False)].index
-        if len(row_start) == 0:
+        # Find the row where the question text appears
+        match = first_col[first_col.str.contains(question[:20], na=False)]
+        if len(match) == 0:
+            match = first_col[first_col.str.contains(question.split()[0], na=False)]
+        if len(match) == 0:
             print(f"⚠️ No match found for Q{q_index}")
             continue
 
-        row_start = row_start[0]
+        row_start = match.index[0]
 
-        try:
-            subset = df.iloc[row_start + 1: row_start + 5, :].copy()
-        except Exception as e:
-            print(f"❌ Error extracting rows for Q{q_index}: {e}")
-            continue
+        # The 4 response rows immediately below the question
+        subset = df.iloc[row_start + 1 : row_start + 5, :]
 
-        responses = subset.iloc[:, 0].astype(str)
-        groups = subset.columns[1:]
+        # Response labels
+        responses = subset.iloc[:, 0].astype(str).tolist()
 
-        numeric = subset.iloc[:, 1:].apply(
-            lambda col: pd.to_numeric(col, errors="coerce").fillna(0)
-        )
+        # ⭐ Extract numeric values from detected numeric columns
+        numeric = subset[numeric_cols].replace("-", np.nan)
+        numeric = numeric.apply(pd.to_numeric, errors="coerce").fillna(0)
 
-        row_sums = numeric.sum(axis=1)
-        row_sums = row_sums.replace(0, 1)
-        pct = (numeric.T / row_sums).T * 100
-        pct = pct.round(1)
+        # Values are already percentages
+        pct = numeric.round(1)
 
-        fig, ax = plt.subplots(figsize=(14, 8))
+        fig_width = max(12, len(groups) * 0.4)
+        fig_height = max(8, len(responses) * 0.25)
 
-        from matplotlib.colors import LinearSegmentedColormap
-        cmap = LinearSegmentedColormap.from_list(
-            "custom_rYG",
-            [(1, 0, 0), (1, 1, 0), (0, 1, 0)],
-            N=256
-        )
-
-        im = ax.imshow(pct.values, cmap=cmap, aspect="auto")
+        fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+        ax.imshow(pct.values, cmap=cmap, aspect="auto")
 
         ax.set_xticks(np.arange(len(groups)))
         ax.set_xticklabels(groups, rotation=45, ha="right", fontsize=12)
@@ -782,10 +796,8 @@ def plot_motivation(filepath):
 
         for i in range(pct.shape[0]):
             for j in range(pct.shape[1]):
-                ax.text(
-                    j, i, f"{pct.iloc[i, j]:.1f}%",
-                    ha="center", va="center", color="black", fontsize=10
-                )
+                ax.text(j, i, f"{pct.iloc[i, j]:.1f}%",
+                        ha="center", va="center", fontsize=9)
 
         plt.tight_layout()
 
@@ -799,8 +811,14 @@ def plot_motivation(filepath):
     return output_paths
 
 
+
+
+
+
+
+
 # -------------------------------------------------
-# School provision
+# School provision – WIPAHS colours
 # -------------------------------------------------
 def plot_school_provision(filepath):
     import pandas as pd
@@ -808,9 +826,6 @@ def plot_school_provision(filepath):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-
-    import uuid
-    import os
 
     print(">>> plot_school_provision called with:", filepath)
 
@@ -828,9 +843,9 @@ def plot_school_provision(filepath):
         x = np.arange(len(countries))
         width = 0.25
 
-        ax.bar(x - width, data[:, 0], width, label="Wales")
-        ax.bar(x,         data[:, 1], width, label="Regional Sport Partnership")
-        ax.bar(x + width, data[:, 2], width, label="Your region")
+        ax.bar(x - width, data[:, 0], width, label="Wales",                    color=WIPAHS_COLORS[3])
+        ax.bar(x,         data[:, 1], width, label="Regional Sport Partnership", color=WIPAHS_COLORS[0])
+        ax.bar(x + width, data[:, 2], width, label="Your region",             color=WIPAHS_COLORS[1])
 
         ax.set_xticks(x)
         ax.set_xticklabels(countries, rotation=45, ha="right")
@@ -866,9 +881,8 @@ def plot_school_provision(filepath):
 
     return plot_primary, plot_secondary
 
-
 # -------------------------------------------------
-# Comparative overall (heatmap + map)
+# Comparative overall – WIPAHS colours
 # -------------------------------------------------
 def plot_overall():
     import os
@@ -878,7 +892,6 @@ def plot_overall():
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-
 
     folder = COMPARE_FOLDER
 
@@ -937,6 +950,10 @@ def plot_overall():
 
     data_matrix = np.column_stack([results[i] for i in range(1, 20)])
 
+    # ⭐ FIX: ensure matrix and region labels always match
+    region_names = np.array(region_names)
+    data_matrix = data_matrix[:len(region_names), :]
+
     metric_labels = [
         "Boy", "Girl", "Years 3 to 6", "Years 7 to 11", "White",
         "Mixed Ethnicity", "Asian", "Black", "Other Ethnicity",
@@ -944,20 +961,27 @@ def plot_overall():
         "FSM 1", "FSM 2", "FSM 3", "FSM 4", "Speaks Welsh", "Does Not Speak Welsh"
     ]
 
+    # ⭐ READABILITY FIX: shorten long labels
+    short_metrics = [shorten_activity(m) for m in metric_labels]
+
     from matplotlib.colors import LinearSegmentedColormap
 
-    fig, ax = plt.subplots(figsize=(18, 10))
+    # ⭐ READABILITY FIX: auto-scale figure size
+    fig_width = max(12, len(short_metrics) * 0.4)
+    fig_height = max(8, len(region_names) * 0.25)
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
 
     cmap = LinearSegmentedColormap.from_list(
-        "custom_rYG",
-        [(1, 0, 0), (1, 1, 0), (0, 1, 0)],
+        "wipahs_heat",
+        [WIPAHS_COLORS[2], WIPAHS_COLORS[5], WIPAHS_COLORS[4]],
         N=256
     )
 
     im = ax.imshow(data_matrix, aspect="auto", cmap=cmap)
 
-    ax.set_xticks(np.arange(len(metric_labels)))
-    ax.set_xticklabels(metric_labels, rotation=45, ha="right", fontsize=10)
+    ax.set_xticks(np.arange(len(short_metrics)))
+    ax.set_xticklabels(short_metrics, rotation=45, ha="right", fontsize=10)
 
     ax.set_yticks(np.arange(len(region_names)))
     ax.set_yticklabels(region_names, fontsize=10)
@@ -966,14 +990,12 @@ def plot_overall():
     ax.set_xlabel("Metrics")
     ax.set_ylabel("Regions")
 
+    # ⭐ READABILITY FIX: cleaner annotations
     for i in range(data_matrix.shape[0]):
         for j in range(data_matrix.shape[1]):
             val = data_matrix[i, j]
             if not np.isnan(val):
-                ax.text(
-                    j, i, f"{val:.1f}",
-                    ha="center", va="center", color="black", fontsize=8
-                )
+                ax.text(j, i, f"{val:.1f}", ha="center", va="center", fontsize=8)
 
     plt.tight_layout()
 
@@ -982,10 +1004,11 @@ def plot_overall():
     plt.savefig(heat_fs, bbox_inches="tight")
     plt.close(fig)
 
-    # Static Wales map image (already in static/)
-    map_path = "static/wales-councils-map-1417540885.gif"
+    map_path = "static/wales-councils-map.png"
 
     return map_path, heat_path
+
+
 # -------------------------------------------------
 # Extract region metrics (for clickable map)
 # -------------------------------------------------
@@ -1032,17 +1055,17 @@ def extract_region_metrics(filepath):
         "Not_Welsh": get("Does not speak Welsh"),
     }
 
-
 # -------------------------------------------------
 # Region statistics route (clickable map)
 # -------------------------------------------------
 @app.route("/region/<region_name>")
 def region_stats(region_name):
-    key = region_name.lower().replace("_eng", "").replace("_", " ")
+    # ⭐ FIX: match the filename EXACTLY
+    key = region_name.lower()
 
     files = [
         f for f in os.listdir(COMPARE_FOLDER)
-        if key in f.lower().replace("_", " ").replace(".xlsx", "")
+        if f.lower().replace(".xlsx", "") == key
     ]
 
     if not files:
@@ -1060,11 +1083,10 @@ def region_stats(region_name):
             cleaned[k] = 0
 
     return cleaned
+
+
 # -------------------------------------------------
-# MAIN ROUTE (UPLOAD‑FREE)
-# -------------------------------------------------
-# -------------------------------------------------
-# MAIN ROUTE (UPLOAD‑FREE, MATCHES NEW INDEX.HTML)
+# MAIN ROUTE (UPLOAD‑FREE, matches new index.html)
 # -------------------------------------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -1072,7 +1094,6 @@ def index():
     plot_file2 = None
     message = ""
 
-    # Folder-based region + comparative files
     region_files = list_region_files()
     compare_files = list_compare_files()
 
@@ -1080,7 +1101,6 @@ def index():
         action = request.form.get("action")
         source = request.form.get("source")
 
-        # REGION ANALYSIS
         if source == "region" and action == "analyze":
             filename = request.form.get("selected_file")
             filepath = os.path.join(REGION_FOLDER, filename)
@@ -1115,7 +1135,6 @@ def index():
                 primary_path, secondary_path = plot_school_provision(filepath)
                 plot_file = [primary_path, secondary_path]
 
-        # COMPARATIVE ANALYSIS
         if source == "compare" and action == "analyze":
             filename = request.form.get("selected_file")
             filepath = os.path.join(COMPARE_FOLDER, filename)
@@ -1142,14 +1161,8 @@ def index():
         compare_files=compare_files
     )
 
-
-
 # -------------------------------------------------
 # Run app
 # -------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
-
-
-
