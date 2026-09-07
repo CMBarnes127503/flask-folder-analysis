@@ -12,6 +12,18 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+# =====================================================
+# WIPAHS SOFT COLOUR PALETTE
+# =====================================================
+
+WIPAHS_COLORS = [
+    "#4C78A8",  # blue
+    "#F58518",  # orange
+    "#E45756",  # red
+    "#72B7B2",  # teal
+    "#54A24B",  # green
+    "#EECA3B",  # yellow
+]
 
 # =====================================================
 # Blueprint
@@ -29,13 +41,11 @@ sss_bp = Blueprint(
 
 SSS_DATA = "https://raw.githubusercontent.com/CMBarnes127503/flask-folder-analysis/main/data/Data%20Set_SSS.xlsx?raw=1"
 
-
 # =====================================================
 # Helper Functions
 # =====================================================
 
 def load_sss_data():
-    """Load SSS dataset directly from GitHub."""
     try:
         df = pd.read_excel(SSS_DATA, sheet_name="SSS (WW)", header=None)
     except Exception as e:
@@ -47,9 +57,6 @@ def load_sss_data():
 
 
 def get_table(df, table_name):
-    print("\n\n==================== DEBUG: get_table() ====================")
-    print(f"Looking for table: {table_name}\n")
-
     df_str = df.astype(str).apply(lambda col: col.str.strip())
 
     patterns = [
@@ -66,36 +73,21 @@ def get_table(df, table_name):
     for p in patterns:
         mask = df_str.apply(lambda col: col.str.contains(p, case=False, regex=False))
         rows = df.index[mask.any(axis=1)].tolist()
-        if rows:
-            print(f"Pattern '{p}' matched rows: {rows}")
         matches.extend(rows)
 
     if not matches:
-        print("DEBUG: No table match found. First 200 rows:")
-        print(df_str.head(200))
         return None
 
     start = matches[0] + 1
-    print(f"DEBUG: Initial start row: {start}")
-
     while start < len(df) and df.iloc[start].isna().all():
-        print(f"DEBUG: Skipping blank row at index {start}")
         start += 1
-
-    print(f"DEBUG: Real table starts at row index: {start}")
 
     end = start
     while end < len(df) and not df.iloc[end].isna().all():
         end += 1
 
-    print(f"DEBUG: Table ends at row index: {end}")
-
     table = df.iloc[start:end].copy()
     table = table.reset_index(drop=True)
-
-    print("\nDEBUG: Extracted table preview:")
-    print(table.head(15))
-
     return table
 
 
@@ -112,9 +104,6 @@ def save_plot(fig):
 # =====================================================
 
 def simple_summary(df, table_name, title):
-    print("\n\n==================== DEBUG: simple_summary() ====================")
-    print(f"Summary requested for: {table_name}")
-
     table = get_table(df, table_name)
     if table is None:
         return f"{title} could not be found."
@@ -125,27 +114,19 @@ def simple_summary(df, table_name, title):
         if series.notna().sum() > 0:
             numeric_cols.append(col)
 
-    print(f"DEBUG: Numeric columns detected: {numeric_cols}")
-
     if not numeric_cols:
         return f"No numeric columns found in {title}."
 
     if table_name == "Table 6" and len(numeric_cols) > 1:
         first_numeric = numeric_cols[1]
-        print(f"DEBUG: Table 6 special rule applied. Using numeric column: {first_numeric}")
     else:
         first_numeric = numeric_cols[0]
-        print(f"DEBUG: Using numeric column: {first_numeric}")
 
     wales_row = table[table.iloc[:, 0] == "Wales"]
-    print("DEBUG: Wales row:")
-    print(wales_row)
-
     if wales_row.empty:
         return f"Wales row missing in {title}."
 
     value = pd.to_numeric(wales_row.iloc[0, first_numeric], errors="coerce")
-    print(f"DEBUG: Wales value extracted: {value}")
 
     lines = [title + ":", ""]
     lines.append(f"Wales: {value:.1f}%")
@@ -160,7 +141,7 @@ def summary_table_4(df):
 
     wales_row = table[table.iloc[:, 0] == "Wales"]
     if wales_row.empty:
-        return "Wales row missing in Weekly Activity Breakdown."
+        return "Wales row missing."
 
     numeric_cols = []
     for col in range(1, table.shape[1]):
@@ -190,15 +171,11 @@ def summary_table_4(df):
 # =====================================================
 
 def bar_plot(df, table_name, title):
-    print("\n\n==================== DEBUG: bar_plot() ====================")
-    print(f"Plot requested for: {table_name}")
-
     table = get_table(df, table_name)
     if table is None:
         return None
 
     areas = table.iloc[:, 0].astype(str).tolist()
-    print(f"DEBUG: Areas: {areas}")
 
     numeric_cols = []
     for col in range(1, table.shape[1]):
@@ -206,28 +183,31 @@ def bar_plot(df, table_name, title):
         if series.notna().sum() > 0:
             numeric_cols.append(col)
 
-    print(f"DEBUG: Numeric columns detected: {numeric_cols}")
-
     if not numeric_cols:
         return None
 
     if table_name == "Table 6" and len(numeric_cols) > 1:
         first_numeric = numeric_cols[1]
-        print(f"DEBUG: Table 6 special rule applied. Using numeric column: {first_numeric}")
     else:
         first_numeric = numeric_cols[0]
-        print(f"DEBUG: Using numeric column: {first_numeric}")
 
     values = pd.to_numeric(table.iloc[:, first_numeric], errors="coerce").tolist()
-    print(f"DEBUG: Values used for bar plot: {values}")
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.bar(areas, values)
+
+    # ⭐ Plot bars at numeric positions
+    x = range(len(areas))
+    ax.bar(x, values, color=WIPAHS_COLORS[0])
+
+    # ⭐ Explicitly set tick positions AND labels
+    ax.set_xticks(x)
+    ax.set_xticklabels(areas, rotation=45, ha="right")
+
     ax.set_title(title)
     ax.set_ylabel("Percentage")
-    plt.xticks(rotation=45)
 
     return save_plot(fig)
+
 
 
 def stacked_bar_plot(df):
@@ -260,7 +240,10 @@ def stacked_bar_plot(df):
     clean = clean.set_index("Area")
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    clean.plot(kind="bar", stacked=True, ax=ax)
+
+    # ⭐ Apply WIPAHS colours
+    clean.plot(kind="bar", stacked=True, ax=ax, color=WIPAHS_COLORS[:4])
+
     ax.set_title("Weekly Activity Breakdown")
     ax.set_ylabel("Percentage")
 
@@ -272,8 +255,10 @@ def heatmap_plot(df, table_name, title):
     if table is None:
         return None
 
+    # Rename first column to "Sport"
     table = table.rename(columns={table.columns[0]: "Sport"})
 
+    # Identify numeric columns
     numeric_cols = []
     for col in table.columns[1:]:
         series = pd.to_numeric(table[col], errors="coerce")
@@ -281,25 +266,29 @@ def heatmap_plot(df, table_name, title):
             numeric_cols.append(col)
             table[col] = series
 
+    # Build clean table
     clean = table[["Sport"] + numeric_cols].copy()
     clean = clean.set_index("Sport")
 
-    real_names = [
-        "Wales",
-        "RSP West Wales",
-        "Pembrokeshire",
-        "Carmarthenshire",
-        "Swansea",
-        "Neath Port Talbot"
-    ]
+    # ⭐ FIX: Ensure ALL sports appear on the heatmap
+    all_sports = table["Sport"].astype(str).unique()
+    clean = clean.reindex(all_sports).fillna(0)
 
-    clean.columns = real_names[:len(clean.columns)]
-
+    # Plot
     fig, ax = plt.subplots(figsize=(14, 10))
-    sns.heatmap(clean, cmap="viridis", annot=True, fmt=".1f", ax=ax)
+
+    sns.heatmap(
+        clean,
+        cmap=sns.color_palette(WIPAHS_COLORS, as_cmap=True),
+        annot=True,
+        fmt=".1f",
+        ax=ax
+    )
+
     ax.set_title(title)
 
     return save_plot(fig)
+
 
 # =====================================================
 # ROUTING LOGIC
@@ -319,9 +308,6 @@ def sss_ww():
     if request.method == "POST":
 
         analysis = request.form.get("wales_analysis")
-
-        print("\n\nDEBUG: FIRST 200 ROWS OF DATAFRAME\n")
-        print(df.head(200))
 
         if analysis == "Frequent Weekly Activity (Table 3)":
             text_summary = simple_summary(df, "Table 3", "Frequent Weekly Activity (3+ times)")
@@ -361,7 +347,7 @@ def sss_ww():
 
         elif analysis == "Community Club Participation by Sport – Annual (Table 9c)":
             text_summary = "Community club participation by sport (annual)."
-            plot_url = heatmap_plot(df, "Table 9c", "Community Club Participation by Sport – Annual")
+            plot_url = heatmap_plot(df, "Table 9c", "Community Club Participation – Annual")
 
         return render_template(
             "analysis.html",
