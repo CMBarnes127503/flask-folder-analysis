@@ -11,6 +11,18 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+# =====================================================
+# WIPAHS SOFT COLOUR PALETTE
+# =====================================================
+
+WIPAHS_COLORS = [
+    "#4C78A8",  # blue
+    "#F58518",  # orange
+    "#E45756",  # red
+    "#72B7B2",  # teal
+    "#54A24B",  # green
+    "#EECA3B",  # yellow
+]
 
 # =====================================================
 # Blueprint
@@ -27,8 +39,6 @@ questions_bp = Blueprint(
 # =====================================================
 
 QUESTIONS_DATA = "https://raw.githubusercontent.com/CMBarnes127503/flask-folder-analysis/main/data/Full%20Data%20Set_example3__.xlsx?raw=1"
-
-
 
 # =====================================================
 # Helper Functions
@@ -121,12 +131,16 @@ def plot_question(df, question, characteristic):
     x = range(len(breakdowns))
     width = 0.2
 
+    # =====================================================
+    # APPLY WIPAHS COLOURS TO EACH GENDER BAR
+    # =====================================================
     for i, g in enumerate(genders):
         ax.bar(
             [xi + i * width for xi in x],
             [row[i] for row in data],
             width=width,
-            label=g
+            label=g,
+            color=WIPAHS_COLORS[i % len(WIPAHS_COLORS)]
         )
 
     ax.set_xticks([xi + width for xi in x])
@@ -185,4 +199,3 @@ def questions():
         "index.html",
         questions_list=questions_list
     )
-
